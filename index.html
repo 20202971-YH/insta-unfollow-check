@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>인스타 맞팔 판독기 (통합_업그레이드)</title>
+    <title>인스타 맞팔 판독기 (최종)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root {
@@ -12,6 +12,8 @@
             --text-dark: #262626;
             --text-gray: #8e8e8e;
             --border-color: #dbdbdb;
+            --success-color: #0095f6;
+            --danger-color: #ed4956;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,111 +37,117 @@
             border: 1px solid var(--border-color);
         }
 
-        header { text-align: center; margin-bottom: 30px; }
-        h2 { font-size: 24px; margin-bottom: 10px; }
+        header { text-align: center; margin-bottom: 25px; }
+        h2 { font-size: 22px; margin-bottom: 8px; font-weight: 800; }
         .safety-badge {
             display: inline-block;
             background: #e8f5e9; color: #2e7d32;
-            font-size: 13px; font-weight: bold;
-            padding: 6px 12px; border-radius: 20px;
-            margin-bottom: 15px;
+            font-size: 12px; font-weight: bold;
+            padding: 4px 10px; border-radius: 20px;
+            margin-bottom: 10px;
         }
-        .desc { color: var(--text-gray); font-size: 14px; line-height: 1.5; }
+        .desc { color: var(--text-gray); font-size: 13px; line-height: 1.5; }
 
+        /* 가이드 (아코디언) */
         details {
-            background: #f8f9fa; border-radius: 12px; padding: 15px; margin-bottom: 25px; border: 1px solid var(--border-color); cursor: pointer;
+            background: #f8f9fa; border-radius: 12px; padding: 12px; margin-bottom: 20px; 
+            border: 1px solid var(--border-color); cursor: pointer; transition: 0.2s;
         }
-        summary { font-weight: bold; color: #3897f0; outline: none; }
+        details[open] { background: #fff; border-color: #c13584; }
+        summary { font-weight: bold; color: #0095f6; outline: none; font-size: 14px; }
         .guide-steps { margin-top: 15px; font-size: 13px; color: var(--text-dark); padding-left: 20px; line-height: 1.6;}
+        .highlight { color: #c13584; font-weight: bold; }
 
-        .upload-group { margin-bottom: 20px; }
+        /* 파일 업로드 버튼 */
+        .upload-group { margin-bottom: 15px; }
         .custom-file-upload {
-            display: flex; align-items: center; justify-content: center;
+            display: flex; align-items: center; justify-content: flex-start;
             width: 100%; padding: 15px;
             border: 2px dashed var(--border-color); border-radius: 12px;
-            cursor: pointer; transition: all 0.3s; background: white; color: var(--text-gray); font-weight: 500;
+            cursor: pointer; transition: all 0.3s; background: white; color: var(--text-gray); font-weight: 500; font-size: 14px;
         }
         .custom-file-upload:hover { border-color: #c13584; background: #fffcfd; color: #c13584; }
-        .custom-file-upload.uploaded { border-style: solid; border-color: #4caf50; color: #4caf50; background: #e8f5e9; }
-        .custom-file-upload span { margin-left: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
+        .custom-file-upload.uploaded { border-style: solid; border-color: var(--success-color); color: var(--success-color); background: #e3f2fd; }
+        .upload-icon { margin-right: 10px; font-size: 18px; }
+        .file-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
         input[type="file"] { display: none; }
-        .upload-icon { font-size: 20px; }
 
+        /* 분석 버튼 */
         .analyze-btn {
             width: 100%; padding: 16px;
             background: var(--primary-gradient);
             color: white; border: none; border-radius: 12px;
             font-size: 16px; font-weight: bold;
             cursor: pointer; transition: transform 0.2s; box-shadow: 0 4px 15px rgba(193, 53, 132, 0.3);
+            margin-top: 10px;
         }
         .analyze-btn:active { transform: scale(0.98); }
-        .analyze-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+        .analyze-btn:disabled { opacity: 0.7; cursor: wait; }
 
+        /* 결과 영역 */
         #result { margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px; display: none; }
-        .summary-box { text-align: center; margin-bottom: 20px; padding: 15px; background: #f0f2f5; border-radius: 12px; }
-        .summary-highlight { font-size: 18px; font-weight: bold; color: #e1306c; display: block; margin-top: 10px;}
-        .mutual-highlight { 
-            background: #e8f5e9; color: #2e7d32; padding: 10px; 
-            border-radius: 8px; margin: 10px 0; font-weight: bold; font-size: 16px;
-        }
         
-        .user-list { max-height: 400px; overflow-y: auto; }
+        .summary-box { text-align: center; margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 15px; border: 1px solid #eee; }
+        .stat-row { display: flex; justify-content: space-around; margin-bottom: 15px; font-size: 14px; }
+        .stat-item strong { display: block; font-size: 18px; margin-top: 5px; color: #262626; }
+        
+        .result-title { font-size: 18px; font-weight: 800; color: var(--danger-color); margin-bottom: 15px; text-align: center; }
+        
+        /* 검색창 및 도구 */
+        .tools { display: flex; gap: 10px; margin-bottom: 15px; }
+        .search-input { flex: 1; padding: 10px; border: 1px solid #dbdbdb; border-radius: 8px; font-size: 14px; }
+        .copy-btn { padding: 10px 15px; background: #262626; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; }
+
+        /* 리스트 스타일 */
+        .user-list { max-height: 400px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; }
         .user-item {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 12px 5px; border-bottom: 1px solid #f0f0f0;
+            padding: 12px 15px; border-bottom: 1px solid #f0f0f0; background: white;
         }
+        .user-item:last-child { border-bottom: none; }
         .user-info { display: flex; align-items: center; }
-        .user-placeholder {
-            width: 32px; height: 32px; background-color: #dbdbdb; border-radius: 50%; margin-right: 12px;
+        .user-avatar {
+            width: 36px; height: 36px; background-color: #eee; border-radius: 50%; margin-right: 12px;
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
         }
-        .user-name { font-weight: 600; font-size: 14px; }
-        .profile-link { color: #3897f0; text-decoration: none; font-size: 13px; font-weight: 600; }
-        .ghost-alert { font-size: 12px; color: #8e8e8e; margin-top: 5px; }
+        .user-name { font-weight: 600; font-size: 14px; color: #262626; }
+        
+        .action-btn { 
+            text-decoration: none; color: white; background-color: var(--success-color); 
+            font-size: 12px; font-weight: bold; padding: 6px 12px; border-radius: 6px; 
+        }
+        .action-btn:hover { background-color: #0077c5; }
+
+        .ghost-alert { font-size: 12px; color: #e1306c; margin-top: 10px; background: #fff0f3; padding: 10px; border-radius: 8px; text-align: left;}
     </style>
 </head>
 <body>
 
 <div class="container">
     <header>
-        <div class="safety-badge">🔒 데이터 전송 없음 (안전)</div>
+        <div class="safety-badge">🔒 100% 로컬 실행 (해킹 위험 없음)</div>
         <h2>🕵️‍♀️ 인스타 맞팔 판독기</h2>
         <p class="desc">
-            모바일 ZIP 파일 업로드 지원<br>
-            (압축 풀지 말고 그대로 올리세요!)
+            ZIP 파일 그대로 올려도 OK!<br>
+            대용량 파일 자동 처리 지원
         </p>
     </header>
 
     <details>
-        <summary>📂 파일을 어디서 구하나요? (클릭)</summary>
-        <ol class="guide-steps" style="padding-left: 20px; line-height: 1.8;">
-            <li>
-                <strong>[설정 진입]</strong> 인스타 앱 메뉴(≡) → <strong>계정 센터</strong> → 내 정보 및 권한 → 내 정보 내보내기
-            </li>
-            <li>
-                <strong>[내보내기]</strong> '내보내기 만들기' 클릭 → <strong>기기로 내보내기</strong> 선택
-            </li>
-            <li>
-                <strong>[항목 선택]</strong> '정보 맞춤 설정' 클릭 → 목록에서 <span style="color:#0095f6; font-weight:bold;">✅ 팔로워 및 팔로잉</span>만 체크
-            </li>
-            <li>
-                <strong>[중요 1]</strong> '기간' 클릭 → 반드시 <span style="background:#e3f2fd; color:#1565c0; padding:2px 6px; border-radius:4px; font-weight:bold;">전체 기간</span>으로 변경 (안 그러면 최근 사람만 나옵니다!)
-            </li>
-            <li>
-                <strong>[중요 2]</strong> '형식' 클릭 → 반드시 <span style="background:#ffebee; color:#c62828; padding:2px 6px; border-radius:4px; font-weight:bold;">JSON</span>으로 변경
-            </li>
-            <li>
-                <strong>[메일 확인]</strong> 잠시 후 이메일이 도착합니다. 안 보이면 <strong style="background:#fff3e0; color:#ef6c00; padding:2px 5px; border-radius:4px;">전체 메일함</strong>을 꼭 확인하세요!
-            </li>
-            <li>
-                <strong>[업로드]</strong> 압축(ZIP) 풀지 말고 <strong> 똑같은 파일을 그대로</strong> 아래 버튼에 각각 업로드하세요.
-            </li>
+        <summary>📂 데이터 다운로드 방법 (필독)</summary>
+        <ol class="guide-steps">
+            <li>인스타 설정 → <strong>내 활동</strong> → 내 정보 다운로드</li>
+            <li>기기로 다운로드 → <strong>'팔로워 및 팔로잉'</strong>만 체크</li>
+            <li>기간: <span class="highlight">전체 기간</span> (필수!)</li>
+            <li>형식: <span class="highlight">JSON</span> (필수!)</li>
+            <li>메일로 온 파일 다운로드 (ZIP 파일 압축 풀 필요 X)</li>
         </ol>
     </details>
 
     <div class="upload-group">
         <label for="followingFile" class="custom-file-upload" id="label-following">
             <span class="upload-icon">📤</span>
-            <span id="text-following">1. 팔로잉 파일 (JSON/ZIP)</span>
+            <span class="file-name" id="text-following">1. 내가 팔로우하는 파일 (JSON/ZIP)</span>
         </label>
         <input type="file" id="followingFile" accept=".json, .zip">
     </div>
@@ -147,20 +155,32 @@
     <div class="upload-group">
         <label for="followersFile" class="custom-file-upload" id="label-followers">
             <span class="upload-icon">📥</span>
-            <span id="text-followers">2. 팔로워 파일 (JSON/ZIP)</span>
+            <span class="file-name" id="text-followers">2. 나를 팔로우하는 파일 (JSON/ZIP)</span>
         </label>
         <input type="file" id="followersFile" accept=".json, .zip">
     </div>
 
-    <button class="analyze-btn" onclick="analyzeFiles()">🔍 결과 보기</button>
+    <button class="analyze-btn" onclick="analyzeFiles()">🔍 분석 시작하기</button>
 
     <div id="result">
         <div class="summary-box" id="summaryBox"></div>
+        
+        <div class="result-title" id="resultTitle"></div>
+        
+        <div class="tools">
+            <input type="text" id="searchInput" class="search-input" placeholder="아이디 검색..." onkeyup="filterList()">
+            <button class="copy-btn" onclick="copyList()">📋 목록 복사</button>
+        </div>
+
         <div class="user-list" id="userList"></div>
     </div>
 </div>
 
 <script>
+    // 전역 변수로 리스트 저장 (검색 기능을 위해)
+    let globalUnfollowerList = [];
+
+    // 파일 선택 시 UI 변경
     document.getElementById('followingFile').addEventListener('change', function(e) {
         updateLabel('label-following', 'text-following', e.target.files[0], 'following');
     });
@@ -173,163 +193,142 @@
         const text = document.getElementById(textId);
         if (file) {
             label.classList.add('uploaded');
-            text.innerText = `✅ 준비완료: ${file.name}`;
+            text.innerText = `✅ 선택됨: ${file.name}`;
         } else {
             label.classList.remove('uploaded');
             text.innerText = type === 'following' 
-                ? '1. 팔로잉 파일 (JSON/ZIP)' 
-                : '2. 팔로워 파일 (JSON/ZIP)';
+                ? '1. 내가 팔로우하는 파일 (JSON/ZIP)' 
+                : '2. 나를 팔로우하는 파일 (JSON/ZIP)';
         }
     }
 
+    // ★ 분석 로직 시작 ★
     async function analyzeFiles() {
         const followingInput = document.getElementById('followingFile');
         const followersInput = document.getElementById('followersFile');
-        const resultDiv = document.getElementById('result');
         const btn = document.querySelector('.analyze-btn');
 
         if (!followingInput.files[0] || !followersInput.files[0]) {
-            alert("파일 두 개를 모두 넣어주세요! (같은 ZIP 파일을 두 번 넣어도 됩니다)");
+            alert("파일 두 개를 모두 업로드해주세요! 😥\n(같은 ZIP 파일을 위아래로 두 번 넣으셔도 됩니다)");
             return;
         }
 
-        btn.innerText = '분석 중...⏳';
+        // 로딩 상태
+        btn.innerHTML = '데이터 분석 중... ⏳';
         btn.disabled = true;
+        document.getElementById('result').style.display = 'none';
 
         try {
-            // ★ 수정: 여러 파일 합치기 기능 추가
-            const followingData = await readFileOrZip(followingInput.files[0], 'following');
-            const followersData = await readFileOrZip(followersInput.files[0], 'followers');
+            // 파일 읽기 (비동기 병렬 처리)
+            const [followingData, followersData] = await Promise.all([
+                readFileOrZip(followingInput.files[0], 'following'),
+                readFileOrZip(followersInput.files[0], 'followers')
+            ]);
 
-            let followingList = [];
-            let followersList = [];
+            // 데이터 병합 및 추출
+            const followingList = processData(followingData);
+            const followersList = processData(followersData);
 
-            // 팔로잉 데이터 처리 (배열 합치기)
-            followingData.forEach(jsonText => {
-                try {
-                    const json = JSON.parse(jsonText);
-                    const extracted = extractUsers(json);
-                    followingList = [...followingList, ...extracted];
-                } catch(e) { console.warn("팔로잉 JSON 파싱 실패", e); }
-            });
+            console.log(`팔로잉: ${followingList.length}, 팔로워: ${followersList.length}`);
 
-            // 팔로워 데이터 처리 (배열 합치기)
-            followersData.forEach(jsonText => {
-                try {
-                    const json = JSON.parse(jsonText);
-                    const extracted = extractUsers(json);
-                    followersList = [...followersList, ...extracted];
-                } catch(e) { console.warn("팔로워 JSON 파싱 실패", e); }
-            });
+            // 유효성 검사
+            if (followingList.length === 0) throw new Error("팔로잉 목록을 찾을 수 없습니다.");
+            if (followersList.length === 0) throw new Error("팔로워 목록을 찾을 수 없습니다.");
 
-            // 중복 제거 (파일이 쪼개져 있었을 경우 대비)
-            followingList = [...new Set(followingList)];
-            followersList = [...new Set(followersList)];
-
-            console.log(`최종 팔로잉: ${followingList.length}명`);
-            console.log(`최종 팔로워: ${followersList.length}명`);
-
-            if (followingList.length === 0) {
-                alert("❌ 팔로잉 목록을 찾지 못했습니다.");
-                throw new Error("Following list empty");
-            }
-            if (followersList.length === 0) {
-                 alert("❌ 팔로워 목록을 찾지 못했습니다.");
-                 throw new Error("Followers list empty");
-            }
-
+            // ★ 핵심 비교 로직 ★
             const followersSet = new Set(followersList);
-            const notFollowingBack = followingList.filter(user => !followersSet.has(user));
+            globalUnfollowerList = followingList.filter(user => !followersSet.has(user));
 
-            displayResult(notFollowingBack, followingList.length, followersList.length);
-            resultDiv.style.display = 'block';
+            // 결과 화면 출력
+            displayResult(globalUnfollowerList, followingList.length, followersList.length);
+            
+            // 결과창 표시
+            document.getElementById('result').style.display = 'block';
+            
+            // 스크롤 이동
+            setTimeout(() => {
+                document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+            }, 100);
 
         } catch (error) {
             console.error(error);
-            if (!error.handled && !error.message.includes("empty")) {
-                alert("분석 중 오류가 발생했습니다: " + error.message);
-            }
+            alert("오류 발생: " + error.message);
         } finally {
-            btn.innerText = '🔍 결과 보기';
+            btn.innerHTML = '🔍 분석 시작하기';
             btn.disabled = false;
         }
     }
 
-    // ★★★ 핵심: 파일 여러 개 찾아서 배열로 반환 ★★★
+    // JSON 문자열 배열을 받아서 유저 리스트로 변환
+    function processData(jsonStringArray) {
+        let allUsers = [];
+        jsonStringArray.forEach(jsonText => {
+            try {
+                const json = JSON.parse(jsonText);
+                const extracted = extractUsers(json);
+                allUsers = [...allUsers, ...extracted];
+            } catch (e) {
+                console.warn("JSON 파싱 건너뜀", e);
+            }
+        });
+        return [...new Set(allUsers)]; // 중복 제거
+    }
+
+    // 파일 또는 ZIP 읽기
     async function readFileOrZip(file, type) {
-        if (file.name.endsWith('.json')) {
+        // 1. 단일 JSON 파일인 경우
+        if (file.name.toLowerCase().endsWith('.json')) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onload = (e) => resolve([e.target.result]); // 배열로 반환
-                reader.onerror = (e) => reject(e);
+                reader.onload = (e) => resolve([e.target.result]);
+                reader.onerror = (e) => reject(new Error("파일 읽기 실패"));
                 reader.readAsText(file);
             });
         }
         
-        if (file.name.endsWith('.zip')) {
+        // 2. ZIP 파일인 경우
+        if (file.name.toLowerCase().endsWith('.zip')) {
             try {
                 const zip = await JSZip.loadAsync(file);
-                let targetFiles = []; // 찾은 파일들을 모을 배열
+                let targetFiles = [];
                 let isHtmlDetected = false;
 
-                // ZIP 안의 모든 파일 검사
+                // ZIP 내부 검색 (대소문자 구분 없이)
+                const regex = type === 'following' ? /following/i : /followers/i;
+
                 for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
-                    if (zipEntry.name.endsWith('.html')) {
-                        isHtmlDetected = true;
-                    }
+                    if (zipEntry.name.toLowerCase().endsWith('.html')) isHtmlDetected = true;
 
-                    const fileName = zipEntry.name.split('/').pop();
-
-                    if (type === 'following') {
-                        // following.json 또는 following_1.json 등 매칭
-                        if (fileName.includes('following') && fileName.endsWith('.json')) {
-                            const content = await zipEntry.async("string");
-                            targetFiles.push(content);
-                        }
-                    } else if (type === 'followers') {
-                        // followers.json 또는 followers_1.json 등 매칭
-                        if (fileName.includes('followers') && fileName.endsWith('.json')) {
-                            const content = await zipEntry.async("string");
-                            targetFiles.push(content);
-                        }
+                    // 폴더 안에 있든 밖에 있든 이름에 following/followers가 포함된 JSON 찾기
+                    if (regex.test(zipEntry.name) && zipEntry.name.toLowerCase().endsWith('.json')) {
+                        const content = await zipEntry.async("string");
+                        targetFiles.push(content);
                     }
                 }
 
-                if (targetFiles.length > 0) {
-                    return targetFiles;
-                } else {
-                    if (isHtmlDetected) {
-                        alert(`🚨 [오류] HTML 파일이 감지되었습니다! '형식'을 JSON으로 변경해서 다시 다운로드 받아주세요.`);
-                        const err = new Error("HTML format detected");
-                        err.handled = true;
-                        throw err;
-                    } else {
-                        alert(`❌ ZIP 파일 안에서 ${type === 'following' ? 'following' : 'followers'} 관련 JSON 파일을 찾을 수 없습니다.`);
-                        const err = new Error("File not found in ZIP");
-                        err.handled = true;
-                        throw err;
-                    }
-                }
+                if (targetFiles.length > 0) return targetFiles;
+                
+                if (isHtmlDetected) throw new Error("HTML 형식이 감지되었습니다! 인스타에서 'JSON' 형식으로 다시 받아주세요.");
+                throw new Error("ZIP 파일 안에서 관련 JSON 파일을 찾지 못했습니다.");
+
             } catch (err) {
-                if(!err.handled) alert("ZIP 파일 읽기 실패: " + err.message);
                 throw err;
             }
         }
 
-        alert("지원하지 않는 파일 형식입니다. (.json 또는 .zip 파일만 가능)");
-        const err = new Error("Invalid file type");
-        err.handled = true;
-        throw err;
+        throw new Error("지원하지 않는 파일 형식입니다. (JSON 또는 ZIP만 가능)");
     }
 
+    // 인스타 데이터 구조에서 아이디 추출 (다양한 포맷 대응)
     function extractUsers(json) {
         let rawDataList = [];
 
+        // 데이터 구조 정규화
         if (Array.isArray(json)) {
             rawDataList = json;
         } else if (typeof json === 'object') {
-            const keys = Object.keys(json);
-            for (let key of keys) {
+            // 객체인 경우 배열을 포함한 키를 찾음 (relationships_following 등)
+            for (let key in json) {
                 if (Array.isArray(json[key])) {
                     rawDataList = json[key];
                     break;
@@ -338,17 +337,22 @@
         }
 
         const userSet = new Set();
-        rawDataList.forEach((item, index) => {
-            try {
-                let username = null;
-                if (item.title) username = item.title;
-                else if (item.string_list_data?.[0]?.value) username = item.string_list_data[0].value;
-                else if (item.value) username = item.value;
-
-                if (username) userSet.add(username.toLowerCase().trim()); 
-            } catch (err) {
-                console.warn(`데이터 읽기 실패:`, err);
+        rawDataList.forEach(item => {
+            let username = null;
+            // 1. 최신 데이터 구조 (string_list_data)
+            if (item.string_list_data && item.string_list_data[0]) {
+                username = item.string_list_data[0].value;
+            } 
+            // 2. 구버전 데이터 구조 (value)
+            else if (item.title) {
+                username = item.title;
             }
+            // 3. 아주 옛날 버전
+            else if (item.value) {
+                username = item.value;
+            }
+
+            if (username) userSet.add(username);
         });
 
         return Array.from(userSet);
@@ -357,46 +361,80 @@
     function displayResult(list, followingCount, followersCount) {
         const summaryBox = document.getElementById('summaryBox');
         const userListDiv = document.getElementById('userList');
-        
-        const mutualCount = followingCount - list.length;
+        const resultTitle = document.getElementById('resultTitle');
 
+        // 통계 표시
         summaryBox.innerHTML = `
-            <div style="font-size: 14px; margin-bottom: 15px;">
-                <span style="color:#3897f0">내가 팔로우: ${followingCount}명</span>
-                 | 
-                <span style="color:#262626">나를 팔로우: ${followersCount}명</span>
+            <div class="stat-row">
+                <div class="stat-item">
+                    <span>내가 팔로우</span>
+                    <strong style="color:#0095f6">${followingCount}</strong>
+                </div>
+                <div class="stat-item">
+                    <span>나를 팔로우</span>
+                    <strong style="color:#262626">${followersCount}</strong>
+                </div>
+                <div class="stat-item">
+                    <span>맞팔 아님</span>
+                    <strong style="color:#ed4956">${list.length}</strong>
+                </div>
             </div>
-
-            <div class="mutual-highlight">
-                🤝 서로 맞팔 중: ${mutualCount}명
-            </div>
-
-            <span class="summary-highlight">😡 배신자: 총 ${list.length}명</span>
-             ${followersCount < 50 && followingCount > 500 ? `<p class="ghost-alert" style="color:red; font-weight:bold;">⚠️ 경고: 팔로워 수가 너무 적습니다!<br>다운로드할 때 [기간]을 '전체 기간'으로 설정했는지 확인하세요.</p>` : ''}
+            ${followersCount < 10 && followingCount > 100 ? 
+                `<div class="ghost-alert">⚠️ <strong>주의:</strong> 팔로워가 너무 적게 나왔습니다.<br>다운로드 시 기간을 '전체 기간'으로 설정하지 않았을 가능성이 높습니다.</div>` : ''}
         `;
 
-        let html = '';
+        resultTitle.innerText = `😡 나를 안 보는 사람 (${list.length}명)`;
+
+        // 리스트 렌더링
+        renderList(list);
+    }
+
+    // 리스트 그리기 함수 (검색 필터링을 위해 분리)
+    function renderList(list) {
+        const userListDiv = document.getElementById('userList');
+        
         if (list.length === 0) {
-            html = `
-                <div style="text-align:center; padding: 40px 0;">
-                    <div style="font-size: 50px;">🎉</div>
-                    <p style="margin-top:10px; font-weight:bold; color:#4caf50;">
-                        모든 사람이 맞팔 중입니다!
-                    </p>
+            userListDiv.innerHTML = `
+                <div style="text-align:center; padding: 40px;">
+                    <div style="font-size: 40px;">🎉</div>
+                    <p style="margin-top:10px; font-weight:bold;">모두가 당신을 맞팔 중입니다!</p>
                 </div>`;
-        } else {
-            list.forEach(user => {
-                html += `
-                <div class="user-item">
-                    <div class="user-info">
-                        <div class="user-placeholder"></div> 
-                        <span class="user-name">${user}</span>
-                    </div>
-                    <a href="https://instagram.com/${user}" target="_blank" class="profile-link">언팔하러 가기</a>
-                </div>`;
-            });
+            return;
         }
+
+        let html = '';
+        list.forEach(user => {
+            html += `
+            <div class="user-item">
+                <div class="user-info">
+                    <div class="user-avatar">👤</div>
+                    <span class="user-name">${user}</span>
+                </div>
+                <a href="https://instagram.com/${user}" target="_blank" class="action-btn">프로필 ></a>
+            </div>`;
+        });
         userListDiv.innerHTML = html;
+    }
+
+    // 검색 기능
+    function filterList() {
+        const query = document.getElementById('searchInput').value.toLowerCase();
+        const filtered = globalUnfollowerList.filter(user => user.toLowerCase().includes(query));
+        renderList(filtered);
+    }
+
+    // 복사 기능
+    function copyList() {
+        if (globalUnfollowerList.length === 0) {
+            alert("복사할 목록이 없습니다.");
+            return;
+        }
+        const text = globalUnfollowerList.join('\n');
+        navigator.clipboard.writeText(text).then(() => {
+            alert(`총 ${globalUnfollowerList.length}명의 명단이 복사되었습니다!`);
+        }).catch(() => {
+            alert("복사 실패 (브라우저 권한 확인 필요)");
+        });
     }
 </script>
 
