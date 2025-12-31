@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>인스타 맞팔 판독기 (최종_완성)</title>
+    <title>인스타 맞팔 판독기 (완결판)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root {
@@ -178,10 +178,10 @@
 </div>
 
 <script>
-    // 전역 변수로 리스트 저장 (검색 기능을 위해)
     let globalUnfollowerList = [];
+    // 디버깅용: 어떤 파일을 읽었는지 저장
+    let debugFileNames = { following: [], followers: [] };
 
-    // 파일 선택 시 UI 변경
     document.getElementById('followingFile').addEventListener('change', function(e) {
         updateLabel('label-following', 'text-following', e.target.files[0], 'following');
     });
@@ -203,64 +203,61 @@
         }
     }
 
-    // ★ 분석 로직 시작 ★
     async function analyzeFiles() {
         const followingInput = document.getElementById('followingFile');
         const followersInput = document.getElementById('followersFile');
         const btn = document.querySelector('.analyze-btn');
 
         if (!followingInput.files[0] || !followersInput.files[0]) {
-            alert("파일 두 개를 모두 업로드해주세요! 😥\n(같은 ZIP 파일을 위아래로 두 번 넣으셔도 됩니다)");
+            alert("파일 두 개를 모두 업로드해주세요! 😥");
             return;
         }
 
-        // 로딩 상태
         btn.innerHTML = '데이터 분석 중... ⏳';
         btn.disabled = true;
         document.getElementById('result').style.display = 'none';
+        debugFileNames = { following: [], followers: [] }; // 초기화
 
         try {
-            // 파일 읽기 (비동기 병렬 처리)
             const [followingData, followersData] = await Promise.all([
                 readFileOrZip(followingInput.files[0], 'following'),
                 readFileOrZip(followersInput.files[0], 'followers')
             ]);
 
-            // 데이터 병합 및 추출
             const followingList = processData(followingData);
             const followersList = processData(followersData);
 
             console.log(`팔로잉: ${followingList.length}, 팔로워: ${followersList.length}`);
 
-            // 유효성 검사
-            if (followingList.length === 0) throw new Error("팔로잉 목록을 찾을 수 없습니다.");
-            if (followersList.length === 0) throw new Error("팔로워 목록을 찾을 수 없습니다.");
+            // ★ 상세 에러 메시지 출력 ★
+            if (followingList.length === 0) {
+                const msg = `오류: 팔로잉 목록을 찾을 수 없습니다.\n\n[확인된 파일]\n${debugFileNames.following.join('\n') || '없음'}\n\n이 파일들 안에 아이디가 하나도 없습니다.`;
+                throw new Error(msg);
+            }
+            if (followersList.length === 0) {
+                const msg = `오류: 팔로워 목록을 찾을 수 없습니다.\n\n[확인된 파일]\n${debugFileNames.followers.join('\n') || '없음'}`;
+                throw new Error(msg);
+            }
 
-            // ★ 핵심 비교 로직 ★
             const followersSet = new Set(followersList);
             globalUnfollowerList = followingList.filter(user => !followersSet.has(user));
 
-            // 결과 화면 출력
             displayResult(globalUnfollowerList, followingList.length, followersList.length);
-            
-            // 결과창 표시
             document.getElementById('result').style.display = 'block';
             
-            // 스크롤 이동
             setTimeout(() => {
                 document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
             }, 100);
 
         } catch (error) {
             console.error(error);
-            alert("오류 발생: " + error.message);
+            alert(error.message);
         } finally {
             btn.innerHTML = '🔍 분석 시작하기';
             btn.disabled = false;
         }
     }
 
-    // JSON 문자열 배열을 받아서 유저 리스트로 변환
     function processData(jsonStringArray) {
         let allUsers = [];
         jsonStringArray.forEach(jsonText => {
@@ -268,97 +265,76 @@
                 const json = JSON.parse(jsonText);
                 const extracted = extractUsers(json);
                 allUsers = [...allUsers, ...extracted];
-            } catch (e) {
-                console.warn("JSON 파싱 건너뜀", e);
-            }
+            } catch (e) { console.warn("파싱 실패", e); }
         });
-        return [...new Set(allUsers)]; // 중복 제거
+        return [...new Set(allUsers)];
     }
 
-    // 파일 또는 ZIP 읽기 (핵심 수정 부분)
     async function readFileOrZip(file, type) {
-        // 1. 단일 JSON 파일인 경우
         if (file.name.toLowerCase().endsWith('.json')) {
-            return new Promise((resolve, reject) => {
+            debugFileNames[type].push(file.name);
+            return new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onload = (e) => resolve([e.target.result]);
-                reader.onerror = (e) => reject(new Error("파일 읽기 실패"));
                 reader.readAsText(file);
             });
         }
         
-        // 2. ZIP 파일인 경우
         if (file.name.toLowerCase().endsWith('.zip')) {
             try {
                 const zip = await JSZip.loadAsync(file);
                 let targetFiles = [];
-                let isHtmlDetected = false;
-
-                // 정규식 설정
                 const regex = type === 'following' ? /following/i : /followers/i;
 
                 for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
-                    // ★ 폴더명을 제외한 순수 파일명만 추출 ★
                     const fileName = zipEntry.name.split('/').pop(); 
-
-                    if (fileName.toLowerCase().endsWith('.html')) isHtmlDetected = true;
-
-                    // 파일명에 'following' 또는 'followers'가 포함된 JSON만 추출
+                    // 파일명에 following/followers가 포함된 모든 JSON 수집
                     if (regex.test(fileName) && fileName.toLowerCase().endsWith('.json')) {
+                        debugFileNames[type].push(fileName);
                         const content = await zipEntry.async("string");
                         targetFiles.push(content);
                     }
                 }
 
                 if (targetFiles.length > 0) return targetFiles;
-                
-                if (isHtmlDetected) throw new Error("HTML 형식이 감지되었습니다! 인스타에서 'JSON' 형식으로 다시 받아주세요.");
                 throw new Error(`ZIP 파일 안에서 '${type}' 관련 파일을 찾지 못했습니다.`);
 
-            } catch (err) {
-                throw err;
-            }
+            } catch (err) { throw err; }
         }
-
-        throw new Error("지원하지 않는 파일 형식입니다. (JSON 또는 ZIP만 가능)");
+        throw new Error("지원하지 않는 파일 형식입니다.");
     }
 
-    // 인스타 데이터 구조에서 아이디 추출 (다양한 포맷 대응)
+    // ★★★ 핵심 수정: 모든 키를 뒤져서 배열 찾기 (빈 배열이 있어도 건너뜀) ★★★
     function extractUsers(json) {
-        let rawDataList = [];
+        let allUsers = [];
 
-        // 데이터 구조 정규화
+        // 배열에서 유저 추출하는 헬퍼 함수
+        const parseArray = (list) => {
+            const users = [];
+            list.forEach(item => {
+                let u = null;
+                if (item.string_list_data?.[0]?.value) u = item.string_list_data[0].value;
+                else if (item.title) u = item.title;
+                else if (item.value) u = item.value;
+                if (u) users.push(u);
+            });
+            return users;
+        };
+
         if (Array.isArray(json)) {
-            rawDataList = json;
-        } else if (typeof json === 'object') {
-            for (let key in json) {
-                if (Array.isArray(json[key])) {
-                    rawDataList = json[key];
-                    break;
+            return parseArray(json);
+        } 
+        
+        if (typeof json === 'object') {
+            // JSON 안의 모든 키를 검사 (순서 상관없이 모든 목록 확인)
+            Object.values(json).forEach(value => {
+                if (Array.isArray(value)) {
+                    const extracted = parseArray(value);
+                    allUsers = [...allUsers, ...extracted];
                 }
-            }
+            });
         }
-
-        const userSet = new Set();
-        rawDataList.forEach(item => {
-            let username = null;
-            // 1. 최신 데이터 구조 (string_list_data)
-            if (item.string_list_data && item.string_list_data[0]) {
-                username = item.string_list_data[0].value;
-            } 
-            // 2. 구버전 데이터 구조 (value)
-            else if (item.title) {
-                username = item.title;
-            }
-            // 3. 아주 옛날 버전
-            else if (item.value) {
-                username = item.value;
-            }
-
-            if (username) userSet.add(username);
-        });
-
-        return Array.from(userSet);
+        return allUsers;
     }
 
     function displayResult(list, followingCount, followersCount) {
@@ -366,78 +342,42 @@
         const userListDiv = document.getElementById('userList');
         const resultTitle = document.getElementById('resultTitle');
 
-        // 통계 표시
         summaryBox.innerHTML = `
             <div class="stat-row">
-                <div class="stat-item">
-                    <span>내가 팔로우</span>
-                    <strong style="color:#0095f6">${followingCount}</strong>
-                </div>
-                <div class="stat-item">
-                    <span>나를 팔로우</span>
-                    <strong style="color:#262626">${followersCount}</strong>
-                </div>
-                <div class="stat-item">
-                    <span>맞팔 아님</span>
-                    <strong style="color:#ed4956">${list.length}</strong>
-                </div>
+                <div class="stat-item"><span>내가 팔로우</span><strong style="color:#0095f6">${followingCount}</strong></div>
+                <div class="stat-item"><span>나를 팔로우</span><strong style="color:#262626">${followersCount}</strong></div>
+                <div class="stat-item"><span>맞팔 아님</span><strong style="color:#ed4956">${list.length}</strong></div>
             </div>
-            ${followersCount < 10 && followingCount > 100 ? 
-                `<div class="ghost-alert">⚠️ <strong>주의:</strong> 팔로워가 너무 적게 나왔습니다.<br>다운로드 시 기간을 '전체 기간'으로 설정하지 않았을 가능성이 높습니다.</div>` : ''}
+            ${followersCount < 10 && followingCount > 100 ? `<div class="ghost-alert">⚠️ 주의: 팔로워가 너무 적습니다. 다운로드 시 기간을 '전체'로 했는지 확인하세요.</div>` : ''}
         `;
 
         resultTitle.innerText = `😡 나를 안 보는 사람 (${list.length}명)`;
-
-        // 리스트 렌더링
         renderList(list);
     }
 
-    // 리스트 그리기 함수 (검색 필터링을 위해 분리)
     function renderList(list) {
         const userListDiv = document.getElementById('userList');
-        
         if (list.length === 0) {
-            userListDiv.innerHTML = `
-                <div style="text-align:center; padding: 40px;">
-                    <div style="font-size: 40px;">🎉</div>
-                    <p style="margin-top:10px; font-weight:bold;">모두가 당신을 맞팔 중입니다!</p>
-                </div>`;
+            userListDiv.innerHTML = `<div style="text-align:center; padding: 40px;"><div style="font-size: 40px;">🎉</div><p style="margin-top:10px; font-weight:bold;">모두가 당신을 맞팔 중입니다!</p></div>`;
             return;
         }
-
         let html = '';
         list.forEach(user => {
-            html += `
-            <div class="user-item">
-                <div class="user-info">
-                    <div class="user-avatar">👤</div>
-                    <span class="user-name">${user}</span>
-                </div>
-                <a href="https://instagram.com/${user}" target="_blank" class="action-btn">프로필 ></a>
-            </div>`;
+            html += `<div class="user-item"><div class="user-info"><div class="user-avatar">👤</div><span class="user-name">${user}</span></div><a href="https://instagram.com/${user}" target="_blank" class="action-btn">프로필 ></a></div>`;
         });
         userListDiv.innerHTML = html;
     }
 
-    // 검색 기능
     function filterList() {
         const query = document.getElementById('searchInput').value.toLowerCase();
-        const filtered = globalUnfollowerList.filter(user => user.toLowerCase().includes(query));
-        renderList(filtered);
+        renderList(globalUnfollowerList.filter(user => user.toLowerCase().includes(query)));
     }
 
-    // 복사 기능
     function copyList() {
-        if (globalUnfollowerList.length === 0) {
-            alert("복사할 목록이 없습니다.");
-            return;
-        }
-        const text = globalUnfollowerList.join('\n');
-        navigator.clipboard.writeText(text).then(() => {
-            alert(`총 ${globalUnfollowerList.length}명의 명단이 복사되었습니다!`);
-        }).catch(() => {
-            alert("복사 실패 (브라우저 권한 확인 필요)");
-        });
+        if (globalUnfollowerList.length === 0) return alert("복사할 목록이 없습니다.");
+        navigator.clipboard.writeText(globalUnfollowerList.join('\n'))
+            .then(() => alert(`총 ${globalUnfollowerList.length}명 복사 완료!`))
+            .catch(() => alert("복사 실패"));
     }
 </script>
 
