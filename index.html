@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>인스타 맞팔 판독기 (최종)</title>
+    <title>인스타 맞팔 판독기 (최종_완성)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root {
@@ -56,6 +56,7 @@
         details[open] { background: #fff; border-color: #c13584; }
         summary { font-weight: bold; color: #0095f6; outline: none; font-size: 14px; }
         .guide-steps { margin-top: 15px; font-size: 13px; color: var(--text-dark); padding-left: 20px; line-height: 1.6;}
+        .guide-steps li { margin-bottom: 8px; }
         .highlight { color: #c13584; font-weight: bold; }
 
         /* 파일 업로드 버튼 */
@@ -274,7 +275,7 @@
         return [...new Set(allUsers)]; // 중복 제거
     }
 
-    // 파일 또는 ZIP 읽기
+    // 파일 또는 ZIP 읽기 (핵심 수정 부분)
     async function readFileOrZip(file, type) {
         // 1. 단일 JSON 파일인 경우
         if (file.name.toLowerCase().endsWith('.json')) {
@@ -293,14 +294,17 @@
                 let targetFiles = [];
                 let isHtmlDetected = false;
 
-                // ZIP 내부 검색 (대소문자 구분 없이)
+                // 정규식 설정
                 const regex = type === 'following' ? /following/i : /followers/i;
 
                 for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
-                    if (zipEntry.name.toLowerCase().endsWith('.html')) isHtmlDetected = true;
+                    // ★ 폴더명을 제외한 순수 파일명만 추출 ★
+                    const fileName = zipEntry.name.split('/').pop(); 
 
-                    // 폴더 안에 있든 밖에 있든 이름에 following/followers가 포함된 JSON 찾기
-                    if (regex.test(zipEntry.name) && zipEntry.name.toLowerCase().endsWith('.json')) {
+                    if (fileName.toLowerCase().endsWith('.html')) isHtmlDetected = true;
+
+                    // 파일명에 'following' 또는 'followers'가 포함된 JSON만 추출
+                    if (regex.test(fileName) && fileName.toLowerCase().endsWith('.json')) {
                         const content = await zipEntry.async("string");
                         targetFiles.push(content);
                     }
@@ -309,7 +313,7 @@
                 if (targetFiles.length > 0) return targetFiles;
                 
                 if (isHtmlDetected) throw new Error("HTML 형식이 감지되었습니다! 인스타에서 'JSON' 형식으로 다시 받아주세요.");
-                throw new Error("ZIP 파일 안에서 관련 JSON 파일을 찾지 못했습니다.");
+                throw new Error(`ZIP 파일 안에서 '${type}' 관련 파일을 찾지 못했습니다.`);
 
             } catch (err) {
                 throw err;
@@ -327,7 +331,6 @@
         if (Array.isArray(json)) {
             rawDataList = json;
         } else if (typeof json === 'object') {
-            // 객체인 경우 배열을 포함한 키를 찾음 (relationships_following 등)
             for (let key in json) {
                 if (Array.isArray(json[key])) {
                     rawDataList = json[key];
@@ -440,6 +443,3 @@
 
 </body>
 </html>
-
-
-
